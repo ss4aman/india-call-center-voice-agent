@@ -1,0 +1,54 @@
+{
+  "bankName": "Puri Bank",
+  "currency": "INR",
+  "accounts": [
+    {
+      "accountId": "PB1001",
+      "customerName": "Aman Puri",
+      "registeredMobileLast4": "8106",
+      "dobDayMonth": "16-09",
+      "accountType": "Savings",
+      "balance": 128450.75,
+      "lastTransactions": [
+        {"date": "2026-02-12", "description": "UPI - Grocery", "amount": -1850.0},
+        {"date": "2026-02-11", "description": "Salary Credit", "amount": 95000.0},
+        {"date": "2026-02-09", "description": "ATM Withdrawal", "amount": -5000.0},
+        {"date": "2026-02-08", "description": "Electricity Bill", "amount": -2200.0},
+        {"date": "2026-02-07", "description": "UPI - Fuel", "amount": -1200.0}
+      ],
+      "loan": {"active": true, "emiAmount": 12450.0, "nextDueDate": "2026-02-28"}
+    },
+    {
+      "accountId": "PB1002",
+      "customerName": "Neha Sharma",
+      "registeredMobileLast4": "4421",
+      "dobDayMonth": "03-02",
+      "accountType": "Savings",
+      "balance": 56780.0,
+      "lastTransactions": [
+        {"date": "2026-02-13", "description": "UPI - Pharmacy", "amount": -640.0},
+        {"date": "2026-02-10", "description": "NEFT Credit", "amount": 15000.0},
+        {"date": "2026-02-09", "description": "UPI - Food Delivery", "amount": -780.0},
+        {"date": "2026-02-08", "description": "Debit Card - Retail", "amount": -2100.0},
+        {"date": "2026-02-06", "description": "UPI - Cab", "amount": -420.0}
+      ],
+      "loan": {"active": false, "emiAmount": 0.0, "nextDueDate": ""}
+    },
+    {
+      "accountId": "PB1003",
+      "customerName": "Ravi Verma",
+      "registeredMobileLast4": "9904",
+      "dobDayMonth": "25-11",
+      "accountType": "Current",
+      "balance": 245990.25,
+      "lastTransactions": [
+        {"date": "2026-02-13", "description": "IMPS Credit", "amount": 45000.0},
+        {"date": "2026-02-12", "description": "RTGS Outward", "amount": -120000.0},
+        {"date": "2026-02-11", "description": "UPI - Office Supplies", "amount": -3200.0},
+        {"date": "2026-02-10", "description": "Cash Deposit", "amount": 25000.0},
+        {"date": "2026-02-09", "description": "GST Payment", "amount": -18500.0}
+      ],
+      "loan": {"active": true, "emiAmount": 28300.0, "nextDueDate": "2026-03-05"}
+    }
+  ]
+}

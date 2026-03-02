@@ -8,6 +8,21 @@
       "location": {
         "value": "${AZURE_LOCATION}"
       },
+      "modelName": {
+        "value": "${AZURE_VOICE_LIVE_MODEL=gpt-4.1}"
+      },
+      "existingVoiceLiveEndpoint": {
+        "value": "${EXISTING_VOICE_LIVE_ENDPOINT=}"
+      },
+      "byomProfile": {
+        "value": "${VOICELIVE_BYOM_MODE=}"
+      },
+      "foundryResourceOverride": {
+        "value": "${VOICELIVE_FOUNDRY_RESOURCE=}"
+      },
+      "existingAcsConnectionString": {
+        "value": "${EXISTING_ACS_CONNECTION_STRING=}"
+      },
       "principalId": {
         "value": "${AZURE_PRINCIPAL_ID}"
       },

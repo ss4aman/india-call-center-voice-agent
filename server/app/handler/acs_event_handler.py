@@ -11,6 +11,7 @@ from azure.communication.callautomation import (AudioFormat,
                                                 MediaStreamingOptions,
                                                 StreamingTransportType)
 from azure.communication.callautomation.aio import CallAutomationClient
+from azure.core.exceptions import HttpResponseError
 from azure.eventgrid import EventGridEvent, SystemEventNames
 from quart import Response
 
@@ -84,12 +85,20 @@ class AcsEventHandler:
                     audio_format=AudioFormat.PCM24_K_MONO,
                 )
 
-                result = await self.acs_client.answer_call(
-                    incoming_call_context=incoming_call_context,
-                    operation_context="incomingCall",
-                    callback_url=callback_uri,
-                    media_streaming=media_streaming_options,
-                )
+                try:
+                    result = await self.acs_client.answer_call(
+                        incoming_call_context=incoming_call_context,
+                        operation_context="incomingCall",
+                        callback_url=callback_uri,
+                        media_streaming=media_streaming_options,
+                    )
+                except HttpResponseError as error:
+                    logger.error(
+                        "Failed to answer call. status=%s message=%s",
+                        getattr(error, "status_code", "unknown"),
+                        str(error),
+                    )
+                    return Response(status=200)
 
                 logger.info(
                     "Answered call for connection id: %s", result.call_connection_id
@@ -112,14 +121,20 @@ class AcsEventHandler:
             )
 
             if event["type"] == "Microsoft.Communication.CallConnected":
-                properties = await self.acs_client.get_call_connection(
-                    call_connection_id
-                ).get_call_properties()
-
-                logger.info(
-                    "MediaStreamingSubscription:--> %s",
-                    properties.media_streaming_subscription,
-                )
+                try:
+                    properties = await self.acs_client.get_call_connection(
+                        call_connection_id
+                    ).get_call_properties()
+                    logger.info(
+                        "MediaStreamingSubscription:--> %s",
+                        properties.media_streaming_subscription,
+                    )
+                except HttpResponseError as error:
+                    logger.warning(
+                        "CallConnected get_call_properties failed. status=%s message=%s",
+                        getattr(error, "status_code", "unknown"),
+                        str(error),
+                    )
                 logger.info(
                     "Received CallConnected event for connection id: %s",
                     call_connection_id,

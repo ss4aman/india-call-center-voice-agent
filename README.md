@@ -1,373 +1,329 @@
-# Call Center Voice Agent Accelerator with Azure Voice Live API
-| [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Azure-Samples/call-center-voice-agent-accelerator) | [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/Azure-Samples/call-center-voice-agent-accelerator)
-|---|---|
+# India Call Center Voice Agent - Azure Voice Live with BYOM
 
-Welcome to the *Call Center Real-time Voice Agent* solution accelerator. It's a lightweight template to create speech-to-speech voice agents that deliver personalized self-service experiences and natural-sounding voices, seamlessly integrated with telephony systems. This solution accelerator uses  **Azure Voice Live API** and **Azure Communication Services** — Start locally, deploy later to Azure Web App. No PSTN number needed.
+A production-ready voice agent accelerator for **Indian call centers**, built with **Azure Voice Live API** and **Bring Your Own Model (BYOM)**. The agent is designed to be **resident in India** (deployed to Azure Central India region), speaks **Hindi** by default, and integrates with Indian telephony providers for PSTN calls.
 
-The Azure voice live API is a solution enabling low-latency, high-quality speech to speech interactions for voice agents. The API is designed for developers seeking scalable and efficient voice-driven experiences as it eliminates the need to manually orchestrate multiple components. By integrating speech recognition, generative AI, and text to speech functionalities into a single, unified interface, it provides an end-to-end solution for creating seamless experiences. Learn more about [Azure Voice Live API](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live).
+This solution demonstrates how to build a real-time, low-latency speech-to-speech voice agent that handles phone banking scenarios — verifying customer identity, retrieving account information, and providing loan details — entirely through natural Hindi conversation.
 
-The Azure Communication Services Calls Automation APIs provide telephony integration and real-time event triggers to perform actions based on custom business logic specific to their domain. Within the call automation APIs developers can use simple AI powered APIs, which can be used to play personalized greeting messages, recognize conversational voice inputs to gather information on contextual questions to drive a more self-service model with customers, use sentiment analysis to improve customer service overall. Learn more about [Azure Communication Services (Call Automation)](https://learn.microsoft.com/azure/communication-services/concepts/call-automation/call-automation).
+---
 
+## Key Highlights
 
-<div align="center">
-  
-[**Features**](#features) \| [**Getting Started**](#getting-started) \| [**Testing the Agent**](#testing-the-agent) \| [**Guidance**](#guidance) \| [**Resources**](#resources)
+| Feature | Details |
+|---------|---------|
+| **Azure Region** | Central India (`centralindia`) — data residency in India |
+| **Primary Language** | Hindi (`hi-IN`) with English fallback |
+| **AI Model** | GPT-4.1 via BYOM (`byom-azure-openai-chat-completion`) |
+| **Voice** | `hi-IN-AnanyaNeural` (Azure TTS, female Hindi voice) |
+| **Telephony** | Azure Communication Services + alternative Indian providers (see below) |
+| **Deployment** | Azure Container Apps with Managed Identity |
+| **Infrastructure** | Bicep/ARM templates, deployed via Azure Developer CLI (`azd`) |
 
-</div>
+---
 
-<br/>
+## Architecture
 
-**Note:** With any AI solutions you create using these templates, you are responsible for assessing all associated risks, and for complying with all applicable laws and safety standards. Learn more in the transparency documents for [Voice Live API](https://learn.microsoft.com/azure/ai-foundry/responsible-ai/speech-service/voice-live/transparency-note) and [Azure Communication Services](https://learn.microsoft.com/azure/communication-services/concepts/privacy).
+```
+┌────────────────┐       ┌──────────────────────────┐
+│  Phone Call     │       │  Web Browser (Test Mode)  │
+│  (PSTN/SIP)    │       │  Microphone + Speaker     │
+└───────┬────────┘       └────────────┬──────────────┘
+        │                             │
+        ▼                             ▼
+┌───────────────────────────────────────────────────────┐
+│          Azure Communication Services (ACS)           │
+│          Event Grid → Incoming Call Webhook            │
+└───────────────────────┬───────────────────────────────┘
+                        │ WebSocket (bidirectional audio)
+                        ▼
+┌───────────────────────────────────────────────────────┐
+│              Azure Container App (Python/Quart)       │
+│  ┌─────────────────────────────────────────────────┐  │
+│  │  server.py → ACS Event Handler → Media Handler  │  │
+│  │  ↕ WebSocket to Azure Voice Live API             │  │
+│  │  ↕ BYOM → GPT-4.1 (Azure OpenAI)               │  │
+│  │  ↕ Ambient Mixer (optional background audio)    │  │
+│  └─────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────┘
+```
 
-<br/>
+### How a Call Works
 
-## Features
-This sample demonstrates how to build a real-time voice agent using the [Azure Speech Voice Live API](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live).
+1. **Incoming call** arrives via ACS (or alternative telephony) → triggers Event Grid webhook
+2. **Server answers** the call and sets up bidirectional audio streaming via WebSocket
+3. **Audio is streamed** to Azure Voice Live API, which orchestrates ASR → LLM → TTS in a single low-latency pipeline
+4. **BYOM routing** sends the LLM request to your own Azure OpenAI deployment (GPT-4.1)
+5. **AI agent responds** in Hindi with the `hi-IN-AnanyaNeural` voice
+6. **Optional ambient audio** (office/call center background sounds) is mixed in for realism
 
-The solution includes:
-- A backend service that connects to the **Voice Live API** for real-time ASR, LLM and TTS
-- Two client options: **Web browser** (microphone/speaker) and **Azure Communication Services (ACS)** phone calls
-- **Ambient Scenes** (optional): Add realistic background audio (office, call center) or use custom audio files to simulate real-world environments
-- Flexible configuration to customize prompts, ASR, TTS, and behavior
-- Easy extension to other client types such as [Audiohook](https://learn.microsoft.com/azure/ai-services/speech-service/how-to-use-audiohook)
+---
 
-> You can also try the Voice Live API via [Azure AI Foundry](https://ai.azure.com/foundry) for quick experimentation before deploying this template to your own Azure subscription.
+## What is Azure Voice Live API?
 
-### Architecture diagram
-|![Architecture Diagram](./docs/images/architecture_v0.0.2.png)|
-|---|
+The [Azure Voice Live API](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live) is a unified solution enabling low-latency, high-quality speech-to-speech interactions for voice agents. It eliminates the need to manually orchestrate multiple components by integrating:
 
-<br/>
+- **Automatic Speech Recognition (ASR)** — real-time transcription
+- **Generative AI (LLM)** — conversation intelligence via your own model (BYOM)
+- **Text-to-Speech (TTS)** — natural-sounding voice responses
+
+### What is BYOM (Bring Your Own Model)?
+
+BYOM mode allows you to connect the Voice Live API to **your own Azure OpenAI model deployment** instead of using a default model. Benefits:
+
+- **Control**: Use your preferred model version (e.g., GPT-4.1, GPT-4o)
+- **Data residency**: Keep model inference within your chosen Azure region
+- **Custom configuration**: Apply your own system prompts, temperature, and token limits
+- **Cost management**: Use your own Azure OpenAI quota
+
+In this accelerator, BYOM is configured via the `byom-azure-openai-chat-completion` profile, routing to an Azure AI Foundry endpoint.
+
+---
+
+## Azure Services Used
+
+| Service | Purpose |
+|---------|---------|
+| [Azure Voice Live API](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live) | Real-time speech-to-speech pipeline (ASR + LLM + TTS) |
+| [Azure OpenAI Service](https://learn.microsoft.com/azure/ai-services/openai/) | GPT-4.1 model via BYOM for conversation intelligence |
+| [Azure Communication Services](https://learn.microsoft.com/azure/communication-services/) | Telephony integration, call automation, media streaming |
+| [Azure Container Apps](https://learn.microsoft.com/azure/container-apps/) | Hosts the Python voice agent application |
+| [Azure Container Registry](https://learn.microsoft.com/azure/container-registry/) | Stores Docker images |
+| [Azure Key Vault](https://learn.microsoft.com/azure/key-vault/) | Securely stores ACS connection strings |
+| [Azure Managed Identity](https://learn.microsoft.com/azure/active-directory/managed-identities-azure-resources/) | Passwordless authentication to all Azure services |
+| [Azure Log Analytics + Application Insights](https://learn.microsoft.com/azure/azure-monitor/) | Monitoring and diagnostics |
+
+---
+
+## Using Indian Phone Numbers with Alternative Telephony Providers
+
+While this accelerator uses **Azure Communication Services (ACS)** for telephony, ACS currently has limited availability of Indian PSTN phone numbers. You can integrate alternative telephony providers that offer Indian phone numbers via **SIP trunking** or **direct routing**.
+
+### Supported Indian Telephony Providers
+
+| Provider | Indian Numbers | Integration Method | Notes |
+|----------|---------------|-------------------|-------|
+| **Exotel** | Yes (local + toll-free) | SIP Trunk / API | Popular in India, supports IVR and call routing |
+| **Ozonetel** | Yes (local + toll-free) | SIP Trunk / WebSocket | Cloud contact center, Indian presence |
+| **Knowlarity** | Yes (virtual numbers) | SIP Trunk / API | Indian virtual numbers with smart IVR |
+| **Tata Communications** | Yes (DID numbers) | SIP Trunk | Enterprise-grade SIP trunking across India |
+| **Airtel IQ** | Yes (local + toll-free) | SIP Trunk / API | Airtel's cloud communication platform |
+| **Route Mobile** | Yes (local + toll-free) | SIP Trunk | Indian CPaaS with global reach |
+| **Twilio** | Yes (limited Indian numbers) | SIP Trunk / Elastic SIP | Global platform with some Indian number availability |
+
+### How to Integrate Alternative Providers
+
+The voice agent architecture supports any telephony provider that can deliver audio via **WebSocket** or **SIP**:
+
+1. **SIP Trunking with ACS Direct Routing**: Configure your Indian telephony provider as a SIP trunk connected to ACS via [Direct Routing](https://learn.microsoft.com/azure/communication-services/concepts/telephony/direct-routing-infrastructure). The call flow remains the same — ACS handles the WebSocket audio bridge to your Container App.
+
+2. **Direct WebSocket Integration**: For providers that support WebSocket audio streaming (e.g., Exotel, Ozonetel), you can bypass ACS entirely and connect the provider's audio stream directly to the `/web/ws` or a custom WebSocket endpoint on your Container App.
+
+3. **AudioHook Integration**: The Voice Live API also supports [AudioHook](https://learn.microsoft.com/azure/ai-services/speech-service/how-to-use-audiohook) for connecting to third-party contact center platforms like Genesys.
+
+```
+┌──────────────────────────┐
+│  Indian Telephony Provider│
+│  (Exotel / Ozonetel /    │
+│   Knowlarity / Airtel IQ)│
+└──────────┬───────────────┘
+           │
+           ▼  Option A: SIP Trunk
+┌──────────────────────────┐
+│  ACS Direct Routing      │──► Container App ──► Voice Live API
+└──────────────────────────┘
+           │
+           ▼  Option B: Direct WebSocket
+┌──────────────────────────┐
+│  Container App /web/ws   │──► Voice Live API (BYOM → GPT-4.1)
+└──────────────────────────┘
+```
+
+---
 
 ## Getting Started
 
-
-| [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Azure-Samples/call-center-voice-agent-accelerator) | [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/Azure-Samples/call-center-voice-agent-accelerator)
-|---|---|
-
-### Prerequisites and Costs
-To deploy this solution accelerator, ensure you have access to an [Azure subscription](https://azure.microsoft.com/free/) with the necessary permissions to create **resource groups and resources**. Follow the steps in [Azure Account Set Up](./docs/AzureAccountSetUp.md).
-
-Check the [Azure Products by Region](https://azure.microsoft.com/explore/global-infrastructure/products-by-region/table) page and select a **region** where the following services are available: Azure AI Foundry Speech, Azure Communication Services, Azure Container Apps, and Container Registry.
-
-Here are some example regions where the services are available: East US2, West US2, Southeast Asia, Central India, Sweden Central.
-Pricing varies per region and usage, so it isn't possible to predict exact costs for your usage. The majority of the Azure resources used in this infrastructure are on usage-based pricing tiers. However, Azure Container Registry has a fixed cost per registry per day.
-
-Use the [Azure pricing calculator](https://azure.microsoft.com/en-us/pricing/calculator) to calculate the cost of this solution in your subscription.
-
-| Product | Description | Cost |
-|---|---|---|
-| [Azure Speech Voice Live ](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live/) | Low-latency and high-quality speech to speech interactions | [Pricing](https://azure.microsoft.com/pricing/details/cognitive-services/speech-services/) |
-| [Azure Communication Services](https://learn.microsoft.com/azure/communication-services/overview) | Server-based intelligent call workflows | [Pricing](https://azure.microsoft.com/pricing/details/communication-services/) |
-| [Azure Container Apps](https://learn.microsoft.com/azure/container-apps/) | Hosts the web application frontend | [Pricing](https://azure.microsoft.com/pricing/details/container-apps/) |
-| [Azure Container Registry](https://learn.microsoft.com/azure/container-registry/) | Stores container images for deployment | [Pricing](https://azure.microsoft.com/pricing/details/container-registry/) |
-
-
-Here are some developers tools to set up as prerequisites:
-- [Azure CLI](https://learn.microsoft.com/cli/azure/what-is-azure-cli): `az`
-- [Azure Developer CLI](https://learn.microsoft.com/azure/developer/azure-developer-cli/overview): `azd`
-- [Python](https://www.python.org/about/gettingstarted/): `python`
-- [UV](https://docs.astral.sh/uv/getting-started/installation/): `uv`
-- Optionally [Docker](https://www.docker.com/get-started/): `docker`
-
-
-### Deployment Options
-Pick from the options below to see step-by-step instructions for: GitHub Codespaces, VS Code Dev Containers, Local Environments, and Bicep deployments.
-
-<details>
-  <summary><b>Deploy in GitHub Codespaces</b></summary>
-  
-### GitHub Codespaces
-
-You can run this solution using GitHub Codespaces. The button will open a web-based VS Code instance in your browser:
-
-1. Open the solution accelerator (this may take several minutes):
-
-    [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Azure-Samples/call-center-voice-agent-accelerator)
-
-2. Accept the default values on the create Codespaces page.
-3. Open a terminal window if it is not already open.
-4. Follow the instructions in the helper script to populate deployment variables.
-5. Continue with the [deploying steps](#deploying).
-
-</details>
-
-<details>
-  <summary><b>Deploy in VS Code Dev Containers </b></summary>
-
- ### VS Code Dev Containers
-
-You can run this solution in VS Code Dev Containers, which will open the project in your local VS Code using the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers):
-
-1. Start Docker Desktop (install it, if not already installed)
-2. Open the project:
-
-    [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/Azure-Samples/call-center-voice-agent-accelerator)
-
-
-3. In the VS Code window that opens, once the project files show up (this may take several minutes), open a terminal window.
-4. Follow the instructions in the helper script to populate deployment variables.
-5. Continue with the [deploying steps](#deploying).
-
-</details>
-
-<details>
-  <summary><b>Deploy in your local environment</b></summary>
-
- ### Local environment
-
-If you're not using one of the above options for opening the project, then you'll need to:
-
-1. Make sure the following tools are installed:
-
-    * `bash`
-    * [Azure Developer CLI (azd)](https://aka.ms/install-azd)
-
-2. Download the project code:
-
-    ```shell
-    azd init -t Azure-Samples/call-center-voice-agent-accelerator/
-    ```
-    **Note:** the above command should be run in a new folder of your choosing. You do not need to run `git clone` to download the project source code. `azd init` handles this for you.
-
-3. Open the project folder in your terminal or editor.
-4. Continue with the [deploying steps](#deploying).
-
-</details>
- 
-### Deploying
-
-Once you've opened the project in [Codespaces](#github-codespaces) or in [Dev Containers](#vs-code-dev-containers) or [locally](#local-environment), you can deploy it to Azure following the following steps. 
-
-To change the `azd` parameters from the default values, follow the steps [here](./docs/customizing_azd_parameters.md). 
-
-1. Login to Azure:
-
-    ```shell
-    azd auth login
-    ```
-
-2. Provision and deploy all the resources:
-
-    ```shell
-    azd up
-    ```
-    It will prompt you to provide an `azd` environment name (like "flask-app"), select a subscription from your Azure account, and select a location (like "eastus"). Then it will provision the resources in your account and deploy the latest code. If you get an error with deployment, changing the location can help, as there may be availability constraints for some of the resources.
-
-3. When `azd` has finished deploying, you'll see an endpoint URI in the command output. Visit that URI, and you should see the API output! 🎉
-
-4. When you've made any changes to the app code, you can just run:
-
-    ```shell
-    azd deploy
-    ```
-
->[!NOTE]
->AZD will also setup the local Python environment for you, using `venv` and installing the required packages.
-
-
->[!NOTE]
->- Region: swedencentral is strongly recommended due to AI Foundry availability.
->- Post-Deployment: You can also setup ACS Event Grid subscription and PSTN to use the ACS client.
-
-
-
-## Testing the Agent
-
-After deployment, you can verify that your Voice Agent is running correctly using either the Web Client (for quick testing) or the ACS Phone Client (for simulating a real-world call center scenario).
-
-🌐 Web Client (Test Mode)
-
-Use this browser-based client to confirm your Container App is up and responding.
-
-1. Go to the [Azure Portal](https://portal.azure.com) and navigate to the **Resource Group** created by your deployment.
-2. Find and open the **Container App** resource.
-3. On the **Overview** page, copy the **Application URL**.
-4. Open the URL in your browser — a demo webpage should load.
-5. Click **Start Talking to Agent** to begin a voice session using your browser’s microphone and speaker.
-6. Click **Stop Conversation** to end the session.
-
-> ⚠️ This web client is intended for testing purposes only. Use the ACS client below for production-like call flow testing.
-
-
-
-📞 ACS Client (Call Center Scenario)
-
-This simulates a real inbound phone call to your voice agent using **Azure Communication Services (ACS)**.
-
-
-#### 1. Set Up Incoming Call Webhook
-
-1. In the same resource group, find and open the **Communication Services** resource.
-2. In the left-hand menu, click **Events**.
-3. Click **+ Event Subscription** and fill in the following:
-
-   - **Event Type**: `IncomingCall`
-   - **Endpoint Type**: `Web Hook`
-   - **Endpoint Address**:
-     ```
-     https://<your-container-app-url>/acs/incomingcall
-     ```
-     Replace `<your-container-app-url>` with the Application URL from your Container App.
-
-📸 Refer to the screenshot below for guidance:
-
-![Event Subscription screenshot](./docs/images/acs_eventsubscription_v0.0.1.png)
-
-
-#### 2. Get a Phone Number
-
-If you haven't already, obtain a phone number for your ACS resource:
-
-👉 [How to get a phone number (Microsoft Docs)](https://learn.microsoft.com/azure/communication-services/quickstarts/telephony/get-phone-number?tabs=windows&pivots=platform-azp-new)
-
-
-#### 3. Call the Agent
-
-Once your event subscription is configured and the phone number is active:
-
-- Dial the ACS number.
-- Your call will connect to the real-time voice agent powered by Azure Voice Live.
-
-
-#### Local execution
-
-Once the environment has been deployed with `azd up` you can also run the application locally.
-
-Please follow the instructions in [the instructions in `service`](./service/README.md)
-
-<br/>
-
-## Use Voice Live with Foundry Agents
-
-The Voice Live API supports connecting to an existing **Azure AI Foundry Agent**, allowing you to leverage pre-built capabilities, knowledge bases, and orchestration features alongside real-time voice interactions.
-
-In the `session.update` configuration, you can set different properties such as the model, voice settings, turn detection, and agent connection. For detailed configuration options and step-by-step instructions, refer to the official documentation:
-
-👉 [Get started with Voice Live and Azure AI Foundry Agent Service](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live-agents-quickstart?tabs=windows%2Ckeyless&pivots=ai-foundry-portal)
-
-After updating your configuration, deploy the changes to your Container App:
+### Prerequisites
+
+- [Azure Subscription](https://azure.microsoft.com/free/) with permissions to create resources
+- [Azure Developer CLI (azd)](https://aka.ms/install-azd)
+- [Azure CLI (az)](https://learn.microsoft.com/cli/azure/)
+- [Python 3.12+](https://www.python.org/)
+- [UV](https://docs.astral.sh/uv/getting-started/installation/)
+
+### Quick Deploy to Azure
 
 ```bash
-azd deploy
+# Clone this repo
+git clone https://github.com/ss4aman/india-call-center-voice-agent.git
+cd india-call-center-voice-agent
+
+# Login to Azure
+azd auth login
+
+# Deploy (select 'centralindia' when prompted for region)
+azd up
 ```
 
-<br/>
+During deployment you'll be prompted for:
+- **Environment name**: e.g., `india-cc-agent`
+- **Azure subscription**: Your subscription
+- **Azure location**: Choose `centralindia` for India data residency
 
-## Optional Features
+### Configuration
 
-### 🎧 Ambient Scenes
+After deployment, configure BYOM and Voice Live settings:
 
-Add realistic background audio to your voice agent to simulate real-world call center environments. This feature works for both web browser and phone (ACS) clients.
+```bash
+# Set BYOM mode to route to your own Azure OpenAI deployment
+azd env set VOICELIVE_BYOM_MODE byom-azure-openai-chat-completion
+azd env set VOICELIVE_FOUNDRY_RESOURCE <your-foundry-resource-name>
 
-**Available Presets:**
+# Optionally reuse an existing Voice Live endpoint
+azd env set EXISTING_VOICE_LIVE_ENDPOINT https://<your-resource>.cognitiveservices.azure.com/
+
+# Optionally reuse an existing ACS resource
+azd env set EXISTING_ACS_CONNECTION_STRING "endpoint=https://...;accesskey=..."
+
+# Redeploy with new settings
+azd up
+```
+
+### Voice & Language Configuration
+
+Set these environment variables to customize the agent's behavior:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AZURE_VOICELIVE_INPUT_LANGUAGE` | `hi-IN` | Input language (Hindi) |
+| `AZURE_VOICELIVE_INPUT_TRANSCRIPTION_MODEL` | `azure-speech` | ASR model (`azure-speech` or `whisper-1`) |
+| `AZURE_VOICELIVE_VAD_TYPE` | `azure_semantic_vad` | Voice Activity Detection type |
+| `AZURE_VOICELIVE_NOISE_REDUCTION_TYPE` | `azure_deep_noise_suppression` | Background noise reduction |
+| `AZURE_VOICELIVE_ECHO_CANCELLATION_ENABLED` | `True` | Echo cancellation |
+| `AMBIENT_PRESET` | `none` | Background audio (`none`, `office`, `call_center`) |
+
+---
+
+## Testing
+
+### Web Browser (Quick Test)
+
+1. After deployment, find the **Container App URL** in the Azure Portal
+2. Open the URL in your browser
+3. Click **Start Talking to Agent** — speak in Hindi to interact with the banking agent
+4. Click **Stop Conversation** to end
+
+### Phone Call (Production Scenario)
+
+1. In your **Azure Communication Services** resource, go to **Events**
+2. Create an **Event Subscription** for `IncomingCall` events pointing to:
+   ```
+   https://<your-container-app-url>/acs/incomingcall
+   ```
+3. [Get a phone number](https://learn.microsoft.com/azure/communication-services/quickstarts/telephony/get-phone-number) or configure SIP Direct Routing with an Indian telephony provider
+4. Call the number — the AI agent will answer in Hindi
+
+---
+
+## Project Structure
+
+```
+├── azure.yaml              # Azure Developer CLI service definitions
+├── local-overrides.env      # Local config overrides (gitignored)
+├── infra/                   # Bicep infrastructure-as-code
+│   ├── main.bicep           # Main deployment template
+│   ├── main.parameters.json # Parameterized deployment config
+│   └── modules/             # Modular Bicep (ACS, AI, Container App, etc.)
+├── server/                  # Python voice agent application
+│   ├── server.py            # Quart web server (HTTP + WebSocket endpoints)
+│   ├── Dockerfile           # Container build definition
+│   ├── pyproject.toml       # Python dependencies
+│   ├── app/
+│   │   ├── data/            # Mock bank data (JSON)
+│   │   ├── audio/           # Ambient audio files (WAV)
+│   │   └── handler/
+│   │       ├── acs_event_handler.py   # ACS call event processing
+│   │       ├── acs_media_handler.py   # Voice Live WebSocket + audio streaming
+│   │       └── ambient_mixer.py       # Background audio mixing
+│   └── static/
+│       ├── index.html        # Web test client
+│       └── audio-processor.js # Browser audio worklet
+```
+
+---
+
+## Mock Banking Scenario
+
+The included demo agent acts as a **Hindi-speaking phone banking assistant** for a fictional bank. It:
+
+- Greets callers in Hindi
+- Verifies identity (account ID, mobile last 4 digits, date of birth)
+- Provides account balance, recent transactions, and loan status
+- Uses mock data from `server/app/data/` — easily replaceable with your own data or API integrations
+
+---
+
+## Customization
+
+### Change the Agent's Persona
+Edit the system instructions in `server/app/handler/acs_media_handler.py` — the `_build_puri_bank_instructions()` function, or set the `BANK_SYSTEM_INSTRUCTIONS` environment variable to override.
+
+### Change the Voice
+Set `BANK_VOICE_NAME` environment variable. Available Hindi voices include:
+- `hi-IN-AnanyaNeural` (female, default)
+- `hi-IN-SwaraNeural` (female)
+- `hi-IN-MadhurNeural` (male)
+- See [full list of Azure Neural TTS voices](https://learn.microsoft.com/azure/ai-services/speech-service/language-support)
+
+### Use a Different Model
+Change `VOICE_LIVE_MODEL` to any Azure OpenAI model that supports realtime/chat completions.
+
+### Ambient Background Audio
+
+Add realistic background audio to simulate a call center environment:
 
 | Preset | Description |
 |--------|-------------|
-| `none` | Disabled (default) - clean audio with no background |
-| `office` | Quiet office ambient (keyboard typing, soft murmurs) |
-| `call_center` | Busy call center background (phones, conversations) |
-| *custom* | Add your own audio files (see below) |
+| `none` | No background audio (default) |
+| `office` | Quiet office ambient |
+| `call_center` | Busy call center background |
 
-**How to Enable:**
-
-1. Set the `AMBIENT_PRESET` environment variable in your `.env` file:
-   ```
-   AMBIENT_PRESET=call_center
-   ```
-
-2. For Azure deployment, set it before running `azd up`:
-   ```bash
-   azd env set AMBIENT_PRESET call_center
-   azd up
-   ```
-
-**Adjusting Volume:**
-
-The ambient volume is controlled by `_ambient_gain` in `server/app/handler/ambient_mixer.py`:
-
-```python
-self._ambient_gain = 0.08  # Default: subtle background
+```bash
+azd env set AMBIENT_PRESET call_center
+azd deploy
 ```
 
-| Value | Effect |
-|-------|--------|
-| `0.05` | Very quiet (barely audible) |
-| `0.08` | Subtle (default) |
-| `0.12` | Moderate |
-| `0.20` | Noticeable |
+---
 
-**Using Custom Audio Files:**
+## Security Considerations
 
-You can add your own ambient audio files:
+- **Managed Identity**: All Azure service-to-service authentication uses User Assigned Managed Identity (no API keys stored in code)
+- **Key Vault**: ACS connection string is stored in Azure Key Vault and injected via secret reference
+- **No hardcoded secrets**: All sensitive values are parameterized through `azd` environment variables
+- **Data residency**: Deploy to `centralindia` to keep all data within India
 
-1. Prepare your audio file with these requirements:
-   - **Format:** WAV (uncompressed PCM)
-   - **Sample Rate:** 24000 Hz
-   - **Bit Depth:** 16-bit signed
-   - **Channels:** Mono
-   - **Duration:** 30-60 seconds (will loop seamlessly)
+---
 
-2. Place the file in `server/app/audio/`
+## Resources
 
-3. Register the preset in `server/app/handler/ambient_mixer.py`:
-   ```python
-   PRESETS = {
-       "none": {"file": None},
-       "office": {"file": "office.wav"},
-       "call_center": {"file": "callcenter.wav"},
-       "my_custom": {"file": "my_audio.wav"},  # Add your preset
-   }
-   ```
+- [Azure Voice Live API Documentation](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live)
+- [Azure Voice Live BYOM Guide](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live-byom)
+- [Azure Communication Services Call Automation](https://learn.microsoft.com/azure/communication-services/concepts/call-automation/call-automation)
+- [Azure AI Foundry](https://ai.azure.com/foundry)
+- [ACS Direct Routing for SIP Trunking](https://learn.microsoft.com/azure/communication-services/concepts/telephony/direct-routing-infrastructure)
 
-4. Set `AMBIENT_PRESET=my_custom` in your `.env` file
+---
 
-<br/>
-
-## Guidance
-
-### Resource Clean-up
-
-When you no longer need the resources created in this article, run the following command to power down the app:
+## Cleanup
 
 ```bash
 azd down
 ```
 
-If you want to redeploy to a different region, delete the `.azure` directory before running `azd up` again. In a more advanced scenario, you could selectively edit files within the `.azure` directory to change the region.
+This removes all Azure resources created by the deployment.
 
-<br/>
+---
 
-## Resources
-- [📖 Docs: Voice live overview](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live)
-- [📖 Blog: Upgrade your voice agent with Azure AI Voice Live API](https://techcommunity.microsoft.com/blog/azure-ai-foundry-blog/upgrade-your-voice-agent-with-azure-ai-voice-live-api/4458247)
-- [📖 Docs: Azure Speech](https://learn.microsoft.com/azure/ai-services/speech-service/)
-- [📖 Docs: Azure Communication Services (Call Automation)](https://learn.microsoft.com/azure/communication-services/concepts/call-automation/call-automation)
+## License
 
-<br/>  
+This project is licensed under the MIT License - see [LICENSE.md](LICENSE.md) for details.
 
-
-## Security Considerations
-
-ACS currently does not support Managed Identity. The ACS connection string is stored securely in Key Vault and injected into the container app via its secret URL.
-
-
-## Additional Disclaimers
-To the extent that the Software includes components or code used in or derived from Microsoft products or services, including without limitation Microsoft Azure Services (collectively, “Microsoft Products and Services”), you must also comply with the Product Terms applicable to such Microsoft Products and Services. You acknowledge and agree that the license governing the Software does not grant you a license or other right to use Microsoft Products and Services. Nothing in the license or this ReadMe file will serve to supersede, amend, terminate or modify any terms in the Product Terms for any Microsoft Products and Services. 
-
-You must also comply with all domestic and international export laws and regulations that apply to the Software, which include restrictions on destinations, end users, and end use. For further information on export restrictions, visit https://aka.ms/exporting. 
-
-You acknowledge that the Software and Microsoft Products and Services (1) are not designed, intended or made available as a medical device(s), and (2) are not designed or intended to be a substitute for professional medical advice, diagnosis, treatment, or judgment and should not be used to replace or as a substitute for professional medical advice, diagnosis, treatment, or judgment. Customer is solely responsible for displaying and/or obtaining appropriate consents, warnings, disclaimers, and acknowledgements to end users of Customer’s implementation of the Online Services. 
-
-You acknowledge the Software is not subject to SOC 1 and SOC 2 compliance audits. No Microsoft technology, nor any of its component technologies, including the Software, is intended or made available as a substitute for the professional advice, opinion, or judgement of a certified financial services professional. Do not use the Software to replace, substitute, or provide professional financial advice or judgment.  
-
-BY ACCESSING OR USING THE SOFTWARE, YOU ACKNOWLEDGE THAT THE SOFTWARE IS NOT DESIGNED OR INTENDED TO SUPPORT ANY USE IN WHICH A SERVICE INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE COULD RESULT IN THE DEATH OR SERIOUS BODILY INJURY OF ANY PERSON OR IN PHYSICAL OR ENVIRONMENTAL DAMAGE (COLLECTIVELY, “HIGH-RISK USE”), AND THAT YOU WILL ENSURE THAT, IN THE EVENT OF ANY INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE, THE SAFETY OF PEOPLE, PROPERTY, AND THE ENVIRONMENT ARE NOT REDUCED BELOW A LEVEL THAT IS REASONABLY, APPROPRIATE, AND LEGAL, WHETHER IN GENERAL OR IN A SPECIFIC INDUSTRY. BY ACCESSING THE SOFTWARE, YOU FURTHER ACKNOWLEDGE THAT YOUR HIGH-RISK USE OF THE SOFTWARE IS AT YOUR OWN RISK.  
-
-##  Trademarks: 
-This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft trademarks or logos is subject to and must follow [Microsoft’s Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general). Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship. Any use of third-party trademarks or logos are subject to those third-party’s policies.
-
-## Data Collection:
-The software may collect information about you and your use of the software and send it to Microsoft. Microsoft may use this information to provide services and improve our products and services. You may turn off the telemetry as described in the repository. There are also some features in the software that may enable you and Microsoft to collect data from users of your applications. If you use these features, you must comply with applicable law, including providing appropriate notices to users of your applications together with a copy of Microsoft’s privacy statement. Our privacy statement is located at [here](https://go.microsoft.com/fwlink/?LinkID=824704). You can learn more about data collection and use in the help documentation and our privacy statement. Your use of the software operates as your consent to these practices.
-
-**Note**: 
-- No telemetry or data collection is directly added in this accelerator project. Please review individual telemetry information from the included Azure services regarding their APIs.
+Based on the [Azure Samples Call Center Voice Agent Accelerator](https://github.com/Azure-Samples/call-center-voice-agent-accelerator).

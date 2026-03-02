@@ -10,6 +10,8 @@ param aiServicesEndpoint string
 param modelDeploymentName string
 param acsConnectionStringSecretUri string
 param logAnalyticsWorkspaceName string
+param byomProfile string = ''
+param foundryResourceOverride string = ''
 @description('The name of the container image')
 param imageName string = ''
 
@@ -92,6 +94,14 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
             {
               name: 'VOICE_LIVE_MODEL'
               value: modelDeploymentName
+            }
+            {
+              name: 'VOICELIVE_BYOM_MODE'
+              value: byomProfile
+            }
+            {
+              name: 'VOICELIVE_FOUNDRY_RESOURCE'
+              value: foundryResourceOverride
             }
             {
               name: 'ACS_CONNECTION_STRING'
