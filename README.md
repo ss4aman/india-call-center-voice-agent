@@ -267,11 +267,29 @@ The included demo agent acts as a **Hindi-speaking phone banking assistant** for
 Edit the system instructions in `server/app/handler/acs_media_handler.py` — the `_build_puri_bank_instructions()` function, or set the `BANK_SYSTEM_INSTRUCTIONS` environment variable to override.
 
 ### Change the Voice
-Set `BANK_VOICE_NAME` environment variable. Available Hindi voices include:
-- `hi-IN-AnanyaNeural` (female, default)
-- `hi-IN-SwaraNeural` (female)
-- `hi-IN-MadhurNeural` (male)
-- See [full list of Azure Neural TTS voices](https://learn.microsoft.com/azure/ai-services/speech-service/language-support)
+
+Set the `BANK_VOICE_NAME` environment variable to any Hindi Neural TTS voice. The voice can be changed at any time by updating this variable and redeploying.
+
+```bash
+azd env set BANK_VOICE_NAME hi-IN-AnanyaNeural
+azd deploy
+```
+
+#### Available Hindi (hi-IN) Neural TTS Voices
+
+| Voice Name | Gender | Style | Notes |
+|------------|--------|-------|-------|
+| `hi-IN-AnanyaNeural` | Female | General | **Default** — natural conversational tone |
+| `hi-IN-SwaraNeural` | Female | General | Warm, friendly tone |
+| `hi-IN-AaravNeural` | Male | General | Clear, professional |
+| `hi-IN-KavyaNeural` | Female | General | Bright, youthful |
+| `hi-IN-KunalNeural` | Male | General | Calm, authoritative |
+| `hi-IN-MadhurNeural` | Male | General | Mature, balanced |
+| `hi-IN-RehaanNeural` | Male | General | Young, energetic |
+
+> All voices above are Azure Neural TTS voices supporting real-time streaming. For multilingual scenarios, you can also use `hi-IN` locale voices from the multilingual voice family.
+>
+> See the [full list of Azure Neural TTS voices](https://learn.microsoft.com/azure/ai-services/speech-service/language-support?tabs=tts#supported-languages) for additional options including other Indian languages (Tamil, Telugu, Bengali, Marathi, Gujarati, Kannada, Malayalam, etc.).
 
 ### Use a Different Model
 Change `VOICE_LIVE_MODEL` to any Azure OpenAI model that supports realtime/chat completions.
